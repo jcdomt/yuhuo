@@ -12,11 +12,18 @@ type Controller struct {
 }
 
 func (c Controller) Router(r mvc.ControllerRouter) {
+	r.Group("/hello", func(r mvc.ControllerRouter) {
+		r.GET("/world", c.Hello)
+	})
 	r.GET("/health", c.Health)
 }
 
+func (c Controller) Hello() interface{} {
+	return yuhuo.M{"message": "Hello, World!"}
+}
+
 func (c Controller) Health() interface{} {
-	return map[string]string{"status": "ok"}
+	return yuhuo.M{"status": "ok"}
 }
 
 func main() {

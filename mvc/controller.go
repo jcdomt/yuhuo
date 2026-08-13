@@ -2,6 +2,7 @@ package mvc
 
 import (
 	"net/http"
+	"strings"
 
 	requestcontext "github.com/jcdomt/yuhuo/context"
 )
@@ -24,7 +25,8 @@ type BaseController struct {
 
 // ControllerRouter 是控制器声明路由时使用的受限接口。
 type ControllerRouter struct {
-	group ControllerRouteGroup
+	group  ControllerRouteGroup
+	prefix string
 }
 
 // Handle 按 HTTP 方法注册控制器路由。
@@ -34,22 +36,50 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 	}
 	switch method {
 	case http.MethodGet:
-		router.group.GET(path, handler)
+		router.group.GET(joinControllerPath(router.prefix, path), handler)
 	case http.MethodPost:
-		router.group.POST(path, handler)
+		router.group.POST(joinControllerPath(router.prefix, path), handler)
 	case http.MethodPut:
-		router.group.PUT(path, handler)
+		router.group.PUT(joinControllerPath(router.prefix, path), handler)
 	case http.MethodDelete:
-		router.group.DELETE(path, handler)
+		router.group.DELETE(joinControllerPath(router.prefix, path), handler)
 	case http.MethodPatch:
-		router.group.PATCH(path, handler)
+		router.group.PATCH(joinControllerPath(router.prefix, path), handler)
 	case http.MethodHead:
-		router.group.HEAD(path, handler)
+		router.group.HEAD(joinControllerPath(router.prefix, path), handler)
 	case http.MethodOptions:
-		router.group.OPTIONS(path, handler)
+		router.group.OPTIONS(joinControllerPath(router.prefix, path), handler)
 	default:
 		panic("yuhuo/mvc: unsupported controller method: " + method)
 	}
+}
+
+// Group 创建一个新的路由组，并在该组中注册控制器路由。
+func (router ControllerRouter) Group(path string, fn func(r ControllerRouter)) {
+	if router.group == nil {
+		panic("yuhuo/mvc: controller router is not initialized")
+	}
+	if fn == nil {
+		panic("yuhuo/mvc: controller group callback must not be nil")
+	}
+	fn(ControllerRouter{group: router.group, prefix: joinControllerPath(router.prefix, path)})
+}
+
+// joinControllerPath 合并控制器路由前缀和相对路径。
+func joinControllerPath(prefix, path string) string {
+	if path == "" || path == "/" {
+		if prefix == "" {
+			return "/"
+		}
+		return prefix
+	}
+	if !strings.HasPrefix(path, "/") {
+		panic("yuhuo/mvc: controller route must begin with '/'")
+	}
+	if prefix == "" {
+		return path
+	}
+	return strings.TrimSuffix(prefix, "/") + path
 }
 
 // 将 ControllerFunc 转换为 requestcontext.HandlerFunc，以便在路由中使用。

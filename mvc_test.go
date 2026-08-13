@@ -13,8 +13,10 @@ import (
 type testController struct{}
 
 func (testController) Router(router mvc.ControllerRouter) {
-	router.GET("/health", func() interface{} {
-		return handler.M{"status": "ok"}
+	router.Group("/v1", func(router mvc.ControllerRouter) {
+		router.GET("/health", func() interface{} {
+			return handler.M{"status": "ok"}
+		})
 	})
 }
 
@@ -22,7 +24,7 @@ func TestMVCApplicationHandleController(t *testing.T) {
 	app := yuhuo.New()
 	mvc.New(app.Group("/api")).Handle(testController{})
 
-	request := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	response := httptest.NewRecorder()
 	app.ServeHTTP(response, request)
 
@@ -47,8 +49,26 @@ func TestControllerFuncToHandlerFuncRejectsNil(t *testing.T) {
 	router.Handle(controllerWithNilRoute{})
 }
 
+func TestControllerRouterGroupRejectsNilCallback(t *testing.T) {
+	app := yuhuo.New()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("注册 nil 路由组回调时没有触发 panic")
+		}
+	}()
+
+	mvc.New(app.Group("/api")).Handle(controllerWithNilGroupCallback{})
+}
+
 type controllerWithNilRoute struct{}
 
 func (controllerWithNilRoute) Router(router mvc.ControllerRouter) {
 	router.GET("/nil", nil)
+}
+
+type controllerWithNilGroupCallback struct{}
+
+func (controllerWithNilGroupCallback) Router(router mvc.ControllerRouter) {
+	router.Group("/v1", nil)
 }
