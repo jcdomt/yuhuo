@@ -36,6 +36,37 @@ func TestMVCApplicationHandleController(t *testing.T) {
 	}
 }
 
+type contextController struct {
+	mvc.BaseController
+}
+
+func (contextController) Router(router mvc.ControllerRouter) {
+	router.GET("/context", contextController{}.Value, func(ctx *yuhuo.Context) {
+		ctx.Set("request-id", "abc-123")
+		ctx.Next()
+	})
+}
+
+func (controller contextController) Value() interface{} {
+	return handler.M{"requestID": controller.Ctx.Get("request-id")}
+}
+
+func TestControllerMethodReceivesRequestContext(t *testing.T) {
+	app := yuhuo.New()
+	mvc.New(app.Group("/api")).Handle(contextController{})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/context", nil)
+	response := httptest.NewRecorder()
+	app.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if body := response.Body.String(); body != `{"requestID":"abc-123"}` {
+		t.Fatalf("body = %q, want %q", body, `{"requestID":"abc-123"}`)
+	}
+}
+
 func TestControllerFuncToHandlerFuncRejectsNil(t *testing.T) {
 	app := yuhuo.New()
 	router := mvc.New(app.Group("/api"))

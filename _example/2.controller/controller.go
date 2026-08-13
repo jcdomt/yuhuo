@@ -11,15 +11,23 @@ type Controller struct {
 	mvc.BaseController
 }
 
+var middleware = func(c *yuhuo.Context) {
+	c.Set("middleware", "This is a middleware")
+	c.Next()
+}
+
 func (c Controller) Router(r mvc.ControllerRouter) {
 	r.Group("/hello", func(r mvc.ControllerRouter) {
-		r.GET("/world", c.Hello)
+		r.GET("/world", c.Hello, middleware)
 	})
 	r.GET("/health", c.Health)
 }
 
 func (c Controller) Hello() interface{} {
-	return yuhuo.M{"message": "Hello, World!"}
+	return yuhuo.M{
+		"message":    "Hello, World!",
+		"middleware": c.Ctx.Get("middleware"),
+	}
 }
 
 func (c Controller) Health() interface{} {
