@@ -16,6 +16,7 @@ type Context struct {
 	response http.ResponseWriter
 
 	statusCode int
+	committed  bool
 	handlers   []HandlerFunc
 	index      int
 	aborted    bool
@@ -74,11 +75,23 @@ func (ctx *Context) InternalServerError() {
 	ctx.JSON(map[string]interface{}{"error": "Internal Server Error", "code": 500})
 }
 
-// SetStatus 设置响应状态码。
+// SetStatus 设置响应状态码并提交响应头。
 func (ctx *Context) SetStatus(statusCode int) {
+	ctx.writeHeader(statusCode)
+}
+
+// writeHeader 提交响应头，重复调用会被忽略。
+func (ctx *Context) writeHeader(statusCode int) {
+	if ctx.committed {
+		return
+	}
+	ctx.committed = true
 	ctx.statusCode = statusCode
 	ctx.response.WriteHeader(statusCode)
 }
+
+// IsCommitted 判断响应头是否已写出。
+func (ctx *Context) IsCommitted() bool { return ctx.committed }
 
 // Status 返回当前响应状态码。
 func (ctx *Context) Status() int { return ctx.statusCode }
@@ -91,7 +104,7 @@ func (ctx *Context) JSON(data interface{}) {
 		return
 	}
 	ctx.response.Header().Set("Content-Type", "application/json; charset=utf-8")
-	ctx.response.WriteHeader(ctx.statusCode)
+	ctx.writeHeader(ctx.statusCode)
 	_, _ = ctx.response.Write(dataBytes)
 }
 

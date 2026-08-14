@@ -40,6 +40,8 @@ func New() *Application {
 	}
 	app.router.SetLogger(app.logger)
 	app.ApplicationGroup = newApplicationGroup(app, app.router.Group("/"))
+	// 默认挂载恢复中间件，处理链中的 panic 会被捕获并返回 500。
+	app.Use(Recovery())
 	return app
 }
 
