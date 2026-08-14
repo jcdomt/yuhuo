@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 
 	"github.com/jcdomt/yuhuo/router"
 )
@@ -20,6 +21,10 @@ type Context struct {
 	handlers   []HandlerFunc
 	index      int
 	aborted    bool
+
+	query      url.Values
+	body       []byte
+	formParsed bool
 
 	application Application
 }
@@ -106,6 +111,12 @@ func (ctx *Context) JSON(data interface{}) {
 	ctx.response.Header().Set("Content-Type", "application/json; charset=utf-8")
 	ctx.writeHeader(ctx.statusCode)
 	_, _ = ctx.response.Write(dataBytes)
+}
+
+// 带状态码的返回
+func (ctx *Context) JSONs(statusCode int, data interface{}) {
+	ctx.SetStatus(statusCode)
+	ctx.JSON(data)
 }
 
 // GetLogger 返回当前应用的日志记录器。
