@@ -33,7 +33,12 @@ type Application struct {
 
 // New 创建一个新的应用实例。
 func New() *Application {
-	app := &Application{config: GetDefaultConfig(), logger: GetDefaultLogger(), router: router.GetDefaultRouter()}
+	app := &Application{
+		config: GetDefaultConfig(),
+		logger: GetDefaultLogger(),
+		router: router.GetDefaultRouter(),
+	}
+	app.router.SetLogger(app.logger)
 	app.ApplicationGroup = newApplicationGroup(app, app.router.Group("/"))
 	return app
 }

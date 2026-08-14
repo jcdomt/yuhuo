@@ -39,10 +39,18 @@ func (group *RouteGroup) Use(middlewares ...Middleware) {
 }
 
 func (group *RouteGroup) Handle(method, pattern string, handler http.Handler) error {
+	return group.HandleWithSource(method, pattern, handler, "")
+}
+
+// HandleWithSource 注册路由并附带处理器的定义位置。
+func (group *RouteGroup) HandleWithSource(method, pattern string, handler http.Handler, source string) error {
 	if handler == nil {
 		return ErrHandlerMustNotBeNil
 	}
-	return group.router.Handle(method, joinRoutePath(group.prefix, pattern), applyMiddlewares(handler, group.middlewares))
+	if source == "" {
+		source = HandlerSource(handler)
+	}
+	return group.router.HandleWithSource(method, joinRoutePath(group.prefix, pattern), applyMiddlewares(handler, group.middlewares), source)
 }
 
 func (group *RouteGroup) Get(pattern string, handler http.Handler) error {

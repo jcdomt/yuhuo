@@ -35,6 +35,11 @@ func (group *ApplicationGroup) Use(handlers ...HandlerFunc) {
 
 // Handle 注册一个带当前中间件链的路由。
 func (group *ApplicationGroup) Handle(method, pattern string, handler HandlerFunc, middlewares ...HandlerFunc) {
+	group.HandleWithSource(method, pattern, handler, router.HandlerSource(handler), middlewares...)
+}
+
+// HandleWithSource 注册一个带当前中间件链的路由，并附带处理器的定义位置。
+func (group *ApplicationGroup) HandleWithSource(method, pattern string, handler HandlerFunc, source string, middlewares ...HandlerFunc) {
 	if handler == nil {
 		panic("yuhuo: handler must not be nil")
 	}
@@ -42,11 +47,11 @@ func (group *ApplicationGroup) Handle(method, pattern string, handler HandlerFun
 	handlers := append(cloneHandlers(group.handlers), middlewares...)
 	handlers = append(handlers, handler)
 
-	err := group.routerGroup.Handle(method, pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	err := group.routerGroup.HandleWithSource(method, pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := requestcontext.NewContext(r, w, group.application)
 		ctx.SetHandlers(handlers)
 		ctx.Next()
-	}))
+	}), source)
 	if err != nil {
 		panic(err)
 	}

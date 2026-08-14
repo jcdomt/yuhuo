@@ -36,6 +36,7 @@ func (c Controller) Health() interface{} {
 
 func main() {
 	app := yuhuo.New()
+	app.Logger().SetLevel(yuhuo.LogLevelDebug)
 	mvc.New(app.Group("/api")).Handle(Controller{})
 	_ = app.Run(":8080")
 }
