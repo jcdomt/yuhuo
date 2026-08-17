@@ -91,6 +91,6 @@ func (l *DefaultLogger) Log(args ...interface{}) {
 // 注意：每次调用都会返回新的实例，若要调整已使用日志器的级别，请通过 Application.Logger() 获取。
 func GetDefaultLogger() *DefaultLogger {
 	logger := &DefaultLogger{}
-	logger.level.Store(levelDebug)
+	logger.level.Store(levelInfo)
 	return logger
 }

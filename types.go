@@ -7,3 +7,5 @@ type HandlerFunc = requestcontext.HandlerFunc
 
 // M 是 context.M 的根包兼容别名。
 type M = requestcontext.M
+
+type Cookie = requestcontext.Cookie

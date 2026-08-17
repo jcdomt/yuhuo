@@ -102,3 +102,6 @@ func (ctx *Context) Status() int { return ctx.statusCode }
 
 // GetLogger 返回当前应用的日志记录器。
 func (ctx *Context) GetLogger() Logger { return ctx.application.Logger() }
+
+// 别名
+func (ctx *Context) Logger() Logger { return ctx.application.Logger() }

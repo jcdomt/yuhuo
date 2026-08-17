@@ -2,6 +2,8 @@ package context
 
 import "net/http"
 
+type Cookie = http.Cookie
+
 // SetCookie 设置响应 Cookie。
 func (ctx *Context) SetCookie(cookie *http.Cookie) {
 	if cookie == nil {
