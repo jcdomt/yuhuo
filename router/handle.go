@@ -47,7 +47,7 @@ func (r *Router) HandleWithSource(method, pattern string, handler http.Handler, 
 	}
 
 	if current.handler != nil {
-		return fmt.Errorf("router: route already registered: %s %s", method, pattern)
+		return fmt.Errorf("%w: %s %s", ErrRouteAlreadyRegistered, method, pattern)
 	}
 	current.handler = handler
 	current.source = source

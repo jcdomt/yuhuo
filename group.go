@@ -1,6 +1,7 @@
 package yuhuo
 
 import (
+	"errors"
 	"net/http"
 
 	requestcontext "github.com/jcdomt/yuhuo/context"
@@ -53,6 +54,26 @@ func (group *ApplicationGroup) HandleWithSource(method, pattern string, handler 
 		ctx.Next()
 	}), source)
 	if err != nil {
+		panic(err)
+	}
+
+	// 自动注册 OPTIONS 预检处理，使预检请求能够经过中间件链（如 CORS）。
+	if method != http.MethodOptions {
+		group.registerOptions(pattern)
+	}
+}
+
+// registerOptions 为路由自动注册 OPTIONS 处理，运行组中间件链后返回 204。
+func (group *ApplicationGroup) registerOptions(pattern string) {
+	err := group.routerGroup.HandleWithSource(http.MethodOptions, pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := requestcontext.NewContext(r, w, group.application)
+		ctx.SetHandlers(cloneHandlers(group.handlers))
+		ctx.Next()
+		if !ctx.IsCommitted() {
+			ctx.AbortWithStatus(http.StatusNoContent)
+		}
+	}), "")
+	if err != nil && !errors.Is(err, router.ErrRouteAlreadyRegistered) {
 		panic(err)
 	}
 }

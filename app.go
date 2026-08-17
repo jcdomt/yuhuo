@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jcdomt/yuhuo/router"
@@ -69,4 +72,37 @@ func (app *Application) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	return app.server.Shutdown(ctx)
+}
+
+// RunWithGracefulShutdown 启动服务并监听退出信号，收到信号后优雅关闭。
+func (app *Application) RunWithGracefulShutdown(addr string) error {
+	app.config.Addr = addr
+	app.server = &http.Server{Addr: app.config.Addr, Handler: app.router, ReadTimeout: app.config.ReadTimeout, WriteTimeout: app.config.WriteTimeout, IdleTimeout: app.config.IdleTimeout}
+	app.logger.Info("启动服务器：", app.config.Addr)
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := app.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	select {
+	case err := <-errCh:
+		return err
+	case sig := <-quit:
+		app.logger.Info("收到退出信号：", sig.String())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := app.Shutdown(ctx); err != nil {
+		return err
+	}
+	app.logger.Info("服务器已关闭")
+	return nil
 }

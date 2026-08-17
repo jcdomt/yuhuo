@@ -2,7 +2,6 @@ package context
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/url"
 
@@ -100,24 +99,6 @@ func (ctx *Context) IsCommitted() bool { return ctx.committed }
 
 // Status 返回当前响应状态码。
 func (ctx *Context) Status() int { return ctx.statusCode }
-
-// JSON 将数据编码为 JSON 响应。
-func (ctx *Context) JSON(data interface{}) {
-	dataBytes, err := json.Marshal(data)
-	if err != nil {
-		ctx.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	ctx.response.Header().Set("Content-Type", "application/json; charset=utf-8")
-	ctx.writeHeader(ctx.statusCode)
-	_, _ = ctx.response.Write(dataBytes)
-}
-
-// 带状态码的返回
-func (ctx *Context) JSONs(statusCode int, data interface{}) {
-	ctx.SetStatus(statusCode)
-	ctx.JSON(data)
-}
 
 // GetLogger 返回当前应用的日志记录器。
 func (ctx *Context) GetLogger() Logger { return ctx.application.Logger() }

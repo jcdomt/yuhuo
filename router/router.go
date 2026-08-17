@@ -18,8 +18,9 @@ const (
 )
 
 var (
-	ErrHandlerMustNotBeNil  = errors.New("router: handler must not be nil")
-	ErrMethodMustNotBeEmpty = errors.New("router: method must not be empty")
+	ErrHandlerMustNotBeNil    = errors.New("router: handler must not be nil")
+	ErrMethodMustNotBeEmpty   = errors.New("router: method must not be empty")
+	ErrRouteAlreadyRegistered = errors.New("router: route already registered")
 )
 
 // 压缩字典树的节点结构体
