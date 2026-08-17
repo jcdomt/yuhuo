@@ -18,11 +18,19 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+
+	RunWithGracefulShutdown bool
 }
 
 // GetDefaultConfig 返回一份可直接使用的默认配置。
 func GetDefaultConfig() *Config {
-	return &Config{Addr: ":8080", ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	return &Config{
+		Addr:                    ":8080",
+		ReadTimeout:             10 * time.Second,
+		WriteTimeout:            10 * time.Second,
+		IdleTimeout:             60 * time.Second,
+		RunWithGracefulShutdown: true,
+	}
 }
 
 // Application 是应用的具体实现，负责持有路由器、日志器和 HTTP 服务。
@@ -56,6 +64,10 @@ func (app *Application) ServeHTTP(w http.ResponseWriter, r *http.Request) { app.
 
 // Run 启动 HTTP 服务。
 func (app *Application) Run(addr string) error {
+	if app.config.RunWithGracefulShutdown {
+		return app.RunWithGracefulShutdown(app.config.Addr)
+	}
+
 	app.config.Addr = addr
 	app.server = &http.Server{Addr: app.config.Addr, Handler: app.router, ReadTimeout: app.config.ReadTimeout, WriteTimeout: app.config.WriteTimeout, IdleTimeout: app.config.IdleTimeout}
 	app.logger.Info("启动服务器：", app.config.Addr)
@@ -71,6 +83,7 @@ func (app *Application) Shutdown(ctx context.Context) error {
 	if app.server == nil {
 		return nil
 	}
+	app.logger.Info("服务器已关闭")
 	return app.server.Shutdown(ctx)
 }
 
@@ -103,6 +116,5 @@ func (app *Application) RunWithGracefulShutdown(addr string) error {
 	if err := app.Shutdown(ctx); err != nil {
 		return err
 	}
-	app.logger.Info("服务器已关闭")
 	return nil
 }
