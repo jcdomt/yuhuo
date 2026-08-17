@@ -7,8 +7,16 @@ import (
 )
 
 func (r *Router) Handle(method, pattern string, handler http.Handler) error {
+	return r.HandleWithSource(method, pattern, handler, "")
+}
+
+// HandleWithSource 注册路由，并在日志中附带处理器的定义位置。
+func (r *Router) HandleWithSource(method, pattern string, handler http.Handler, source string) error {
 	if handler == nil {
 		return ErrHandlerMustNotBeNil
+	}
+	if source == "" {
+		source = HandlerSource(handler)
 	}
 
 	method = strings.ToUpper(method)
@@ -39,9 +47,18 @@ func (r *Router) Handle(method, pattern string, handler http.Handler) error {
 	}
 
 	if current.handler != nil {
-		return fmt.Errorf("router: route already registered: %s %s", method, pattern)
+		return fmt.Errorf("%w: %s %s", ErrRouteAlreadyRegistered, method, pattern)
 	}
 	current.handler = handler
+	current.source = source
+
+	if r.logger != nil {
+		if source != "" {
+			r.logger.Debug("注册路由：", method, " ", pattern, "\t→\t", source)
+		} else {
+			r.logger.Debug("注册路由：", method, " ", pattern)
+		}
+	}
 
 	return nil
 }

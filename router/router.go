@@ -18,8 +18,9 @@ const (
 )
 
 var (
-	ErrHandlerMustNotBeNil  = errors.New("router: handler must not be nil")
-	ErrMethodMustNotBeEmpty = errors.New("router: method must not be empty")
+	ErrHandlerMustNotBeNil    = errors.New("router: handler must not be nil")
+	ErrMethodMustNotBeEmpty   = errors.New("router: method must not be empty")
+	ErrRouteAlreadyRegistered = errors.New("router: route already registered")
 )
 
 // 压缩字典树的节点结构体
@@ -28,13 +29,28 @@ type node struct {
 	path      string
 	paramName string
 	handler   http.Handler
+	source    string
 	children  []*node
 }
 
+// Logger 是路由器注册路由时所需的最小日志能力。
+// 接口定义在 router 包内，避免反向依赖根包或 context 包造成循环导入。
+type Logger interface {
+	Debug(args ...interface{})
+	Info(args ...interface{})
+}
+
+// noopLogger 在未注入日志器时静默丢弃所有日志。
+type noopLogger struct{}
+
+func (noopLogger) Debug(args ...interface{}) {}
+func (noopLogger) Info(args ...interface{})  {}
+
 // 使用压缩字典树
 type Router struct {
-	mu    sync.RWMutex
-	trees map[string]*node
+	mu     sync.RWMutex
+	trees  map[string]*node
+	logger Logger
 }
 
 type routePart struct {
@@ -46,8 +62,19 @@ type paramsKey struct{}
 
 func GetDefaultRouter() *Router {
 	return &Router{
-		trees: make(map[string]*node),
+		trees:  make(map[string]*node),
+		logger: noopLogger{},
 	}
+}
+
+// SetLogger 注入路由注册使用的日志器。
+func (r *Router) SetLogger(logger Logger) {
+	if logger == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logger = logger
 }
 
 // Param 用于获取路由参数的值。它从请求的上下文中提取参数映射，并返回指定参数名称的值。
@@ -64,6 +91,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if len(match.params) > 0 {
 			req = req.WithContext(context.WithValue(req.Context(), paramsKey{}, match.params))
 		}
+		r.logRequest(req.Method, req.URL.Path, match.source)
 		match.handler.ServeHTTP(w, req)
 		return
 	}
@@ -71,11 +99,31 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	allowed := r.allowedMethods(req.URL.Path)
 	if len(allowed) > 0 {
 		w.Header().Set("Allow", strings.Join(allowed, ", "))
+		r.logUnmatched(req.Method, req.URL.Path, "method not allowed")
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
 
+	r.logUnmatched(req.Method, req.URL.Path, "not found")
 	http.NotFound(w, req)
+}
+
+func (r *Router) logRequest(method, path, source string) {
+	if r.logger == nil {
+		return
+	}
+	if source != "" {
+		r.logger.Info("收到请求：", method, " ", path, " → ", source)
+		return
+	}
+	r.logger.Info("收到请求：", method, " ", path)
+}
+
+func (r *Router) logUnmatched(method, path, reason string) {
+	if r.logger == nil {
+		return
+	}
+	r.logger.Debug("请求未匹配：", method, " ", path, " (", reason, ")")
 }
 
 func (r *Router) allowedMethods(path string) []string {
@@ -227,6 +275,7 @@ func commonPrefixLength(left, right string) int {
 type matchResult struct {
 	handler http.Handler
 	params  map[string]string
+	source  string
 }
 
 func matchRoute(root *node, path string, params map[string]string) (matchResult, bool) {
@@ -239,7 +288,7 @@ func matchRoute(root *node, path string, params map[string]string) (matchResult,
 
 func matchNode(current *node, path string, params map[string]string) (matchResult, bool) {
 	if path == "" && current.handler != nil {
-		return matchResult{handler: current.handler, params: params}, true
+		return matchResult{handler: current.handler, params: params, source: current.source}, true
 	}
 
 	for _, child := range current.children {
@@ -272,6 +321,7 @@ func matchNode(current *node, path string, params map[string]string) (matchResul
 			return matchResult{
 				handler: child.handler,
 				params:  withParam(params, child.paramName, strings.TrimPrefix(path, "/")),
+				source:  child.source,
 			}, true
 		}
 	}
