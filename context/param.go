@@ -3,11 +3,15 @@ package context
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
+	"strconv"
+	"strings"
 )
 
 // defaultMultipartMemory 是解析多部分表单时驻留内存的最大字节数。
@@ -182,4 +186,122 @@ func (ctx *Context) readBody() []byte {
 	ctx.body = data
 	ctx.request.Body = io.NopCloser(bytes.NewReader(data))
 	return data
+}
+
+// BindQuery 将 URL 查询参数绑定到目标结构体。
+// 字段通过 form 或 query 标签指定参数名，缺省使用字段名；标签值为 "-" 时跳过该字段。
+// 支持基本类型、指针以及基本类型切片（多值参数，如 ?tag=a&tag=b）。
+func (ctx *Context) BindQuery(obj interface{}) error {
+	value := reflect.ValueOf(obj)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return fmt.Errorf("context: BindQuery 目标必须是非空结构体指针")
+	}
+	return bindValues(value.Elem(), ctx.queryParams())
+}
+
+// bindValues 将 url.Values 绑定到结构体。
+func bindValues(v reflect.Value, values url.Values) error {
+	if v.Kind() != reflect.Struct {
+		return fmt.Errorf("context: 绑定目标必须是结构体")
+	}
+
+	typ := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldType := typ.Field(i)
+		if fieldType.PkgPath != "" { // 跳过未导出字段
+			continue
+		}
+
+		name := bindFieldName(fieldType)
+		if name == "-" {
+			continue
+		}
+
+		raw, ok := values[name]
+		if !ok || len(raw) == 0 {
+			continue
+		}
+		if err := setBindField(field, raw); err != nil {
+			return fmt.Errorf("context: 参数 %s 绑定失败: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// bindFieldName 解析字段对应的参数名，依次尝试 form、query 标签，缺省用字段名。
+func bindFieldName(field reflect.StructField) string {
+	for _, tag := range []string{"form", "query"} {
+		if name := field.Tag.Get(tag); name != "" {
+			return strings.SplitN(name, ",", 2)[0]
+		}
+	}
+	return field.Name
+}
+
+// setBindField 将参数值写入字段，切片类型按多值处理，其余取第一个值。
+func setBindField(field reflect.Value, raw []string) error {
+	if field.Kind() == reflect.Slice {
+		return setBindSlice(field, raw)
+	}
+	return setBindScalar(field, raw[0])
+}
+
+// setBindSlice 将多值参数写入基本类型切片。
+func setBindSlice(field reflect.Value, raw []string) error {
+	elemType := field.Type().Elem()
+	slice := reflect.MakeSlice(field.Type(), 0, len(raw))
+	for _, item := range raw {
+		elem := reflect.New(elemType).Elem()
+		if err := setBindScalar(elem, item); err != nil {
+			return err
+		}
+		slice = reflect.Append(slice, elem)
+	}
+	field.Set(slice)
+	return nil
+}
+
+// setBindScalar 将字符串按字段基本类型转换并写入，支持指针类型。
+func setBindScalar(field reflect.Value, s string) error {
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			field.Set(reflect.New(field.Type().Elem()))
+		}
+		return setBindScalar(field.Elem(), s)
+	}
+	if !field.CanSet() {
+		return fmt.Errorf("字段不可设置")
+	}
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(s)
+	case reflect.Bool:
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return err
+		}
+		field.SetBool(b)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n, err := strconv.ParseInt(s, 10, field.Type().Bits())
+		if err != nil {
+			return err
+		}
+		field.SetInt(n)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(s, 10, field.Type().Bits())
+		if err != nil {
+			return err
+		}
+		field.SetUint(n)
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(s, field.Type().Bits())
+		if err != nil {
+			return err
+		}
+		field.SetFloat(f)
+	default:
+		return fmt.Errorf("不支持的绑定字段类型 %s", field.Kind())
+	}
+	return nil
 }
