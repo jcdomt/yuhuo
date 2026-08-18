@@ -16,10 +16,23 @@ func (r *ApiResponse) Response() mvc.Result {
 	}
 }
 
+func (r *ApiResponse) Error() bool {
+	// 如果 Code 不在 200-299 范围内，则认为是错误
+	return r.Code/100 != 2
+}
+
 func Api(code int, msg string, data interface{}) ApiResponse {
+	if dataMap, ok := data.(map[string]interface{}); ok {
+		dataMap["code"] = code
+		dataMap["msg"] = msg
+	}
 	return ApiResponse{
 		Code: code,
 		Msg:  msg,
 		Data: data,
 	}
+}
+
+func OK() ApiResponse {
+	return Api(200, "ok", nil)
 }
