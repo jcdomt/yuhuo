@@ -14,22 +14,35 @@ import (
 	"strings"
 )
 
-// defaultMultipartMemory 是解析多部分表单时驻留内存的最大字节数。
+// defaultMultipartMemory 是解析多部分表单时驻留内存的最大字节数
 const defaultMultipartMemory = 32 << 20 // 32 MB
 
 // ---------- 查询参数 ----------
 
-// QueryMap 返回全部查询参数。
+// QueryMap	返回全部查询参数
+//
+// return:
+//   - 全部查询参数
 func (ctx *Context) QueryMap() map[string][]string {
 	return ctx.queryParams()
 }
 
-// Query 获取指定名称的第一个查询参数。
+// Query	获取指定名称的第一个查询参数
+//
+// param:
+//   - name	参数名
+// return:
+//   - 参数值，不存在时返回空字符串
 func (ctx *Context) Query(name string) string {
 	return ctx.queryParams().Get(name)
 }
 
-// GetQuery 获取查询参数，并返回该参数是否存在。
+// GetQuery	获取查询参数，并返回该参数是否存在
+//
+// param:
+//   - name	参数名
+// return:
+//   - 参数值及是否存在
 func (ctx *Context) GetQuery(name string) (string, bool) {
 	values, ok := ctx.queryParams()[name]
 	if !ok || len(values) == 0 {
@@ -38,7 +51,13 @@ func (ctx *Context) GetQuery(name string) (string, bool) {
 	return values[0], true
 }
 
-// DefaultQuery 获取查询参数，不存在或为空时返回默认值。
+// DefaultQuery	获取查询参数，不存在或为空时返回默认值
+//
+// param:
+//   - name	参数名
+//   - defaultValue	默认值
+// return:
+//   - 参数值或默认值
 func (ctx *Context) DefaultQuery(name, defaultValue string) string {
 	if value, ok := ctx.GetQuery(name); ok && value != "" {
 		return value
@@ -46,7 +65,12 @@ func (ctx *Context) DefaultQuery(name, defaultValue string) string {
 	return defaultValue
 }
 
-// QueryArray 获取指定名称查询参数的全部值。
+// QueryArray	获取指定名称查询参数的全部值
+//
+// param:
+//   - name	参数名
+// return:
+//   - 全部参数值
 func (ctx *Context) QueryArray(name string) []string {
 	values, ok := ctx.queryParams()[name]
 	if !ok {
@@ -55,7 +79,10 @@ func (ctx *Context) QueryArray(name string) []string {
 	return values
 }
 
-// queryParams 惰性解析并缓存查询参数。
+// queryParams	惰性解析并缓存查询参数
+//
+// return:
+//   - 查询参数
 func (ctx *Context) queryParams() url.Values {
 	if ctx.query == nil {
 		ctx.query = ctx.request.URL.Query()
@@ -65,25 +92,43 @@ func (ctx *Context) queryParams() url.Values {
 
 // ---------- 表单参数 ----------
 
-// FormMap 返回全部 POST 表单参数。
+// FormMap	返回全部 POST 表单参数
+//
+// return:
+//   - 全部表单参数
 func (ctx *Context) FormMap() map[string][]string {
 	ctx.initPostForm()
 	return ctx.request.PostForm
 }
 
-// Form 获取表单参数，优先取 POST body 中的值，其次查询参数。
+// Form	获取表单参数，优先取 POST body 中的值，其次查询参数
+//
+// param:
+//   - name	参数名
+// return:
+//   - 参数值
 func (ctx *Context) Form(name string) string {
 	ctx.initPostForm()
 	return ctx.request.Form.Get(name)
 }
 
-// PostForm 获取 POST body 中的表单参数。
+// PostForm	获取 POST body 中的表单参数
+//
+// param:
+//   - name	参数名
+// return:
+//   - 参数值
 func (ctx *Context) PostForm(name string) string {
 	ctx.initPostForm()
 	return ctx.request.PostForm.Get(name)
 }
 
-// GetPostForm 获取 POST body 中的表单参数，并返回该参数是否存在。
+// GetPostForm	获取 POST body 中的表单参数，并返回该参数是否存在
+//
+// param:
+//   - name	参数名
+// return:
+//   - 参数值及是否存在
 func (ctx *Context) GetPostForm(name string) (string, bool) {
 	ctx.initPostForm()
 	values, ok := ctx.request.PostForm[name]
@@ -93,7 +138,13 @@ func (ctx *Context) GetPostForm(name string) (string, bool) {
 	return values[0], true
 }
 
-// DefaultPostForm 获取 POST 表单参数，不存在或为空时返回默认值。
+// DefaultPostForm	获取 POST 表单参数，不存在或为空时返回默认值
+//
+// param:
+//   - name	参数名
+//   - defaultValue	默认值
+// return:
+//   - 参数值或默认值
 func (ctx *Context) DefaultPostForm(name, defaultValue string) string {
 	if value, ok := ctx.GetPostForm(name); ok && value != "" {
 		return value
@@ -101,7 +152,12 @@ func (ctx *Context) DefaultPostForm(name, defaultValue string) string {
 	return defaultValue
 }
 
-// PostFormArray 获取指定名称 POST 表单参数的全部值。
+// PostFormArray	获取指定名称 POST 表单参数的全部值
+//
+// param:
+//   - name	参数名
+// return:
+//   - 全部参数值
 func (ctx *Context) PostFormArray(name string) []string {
 	ctx.initPostForm()
 	values, ok := ctx.request.PostForm[name]
@@ -111,8 +167,8 @@ func (ctx *Context) PostFormArray(name string) []string {
 	return values
 }
 
-// initPostForm 确保表单数据已解析。
-// ParseMultipartForm 会同时填充 urlencoded 与 multipart 两种表单数据。
+// initPostForm	确保表单数据已解析
+// ParseMultipartForm 会同时填充 urlencoded 与 multipart 两种表单数据
 func (ctx *Context) initPostForm() {
 	if ctx.formParsed {
 		return
@@ -123,7 +179,10 @@ func (ctx *Context) initPostForm() {
 
 // ---------- 文件上传 ----------
 
-// MultipartForm 返回已解析的多部分表单。
+// MultipartForm	返回已解析的多部分表单
+//
+// return:
+//   - 多部分表单，解析失败时返回错误
 func (ctx *Context) MultipartForm() (*multipart.Form, error) {
 	if err := ctx.request.ParseMultipartForm(defaultMultipartMemory); err != nil {
 		return nil, err
@@ -131,12 +190,23 @@ func (ctx *Context) MultipartForm() (*multipart.Form, error) {
 	return ctx.request.MultipartForm, nil
 }
 
-// FormFile 获取指定名称的上传文件。
+// FormFile	获取指定名称的上传文件
+//
+// param:
+//   - name	文件字段名
+// return:
+//   - 上传文件、文件信息及错误
 func (ctx *Context) FormFile(name string) (multipart.File, *multipart.FileHeader, error) {
 	return ctx.request.FormFile(name)
 }
 
-// SaveUploadedFile 将上传文件保存到目标路径。
+// SaveUploadedFile	将上传文件保存到目标路径
+//
+// param:
+//   - file	上传文件信息
+//   - dst	目标文件路径
+// return:
+//   - 保存过程中的错误
 func (ctx *Context) SaveUploadedFile(file *multipart.FileHeader, dst string) error {
 	if file == nil {
 		return http.ErrMissingFile
@@ -159,22 +229,36 @@ func (ctx *Context) SaveUploadedFile(file *multipart.FileHeader, dst string) err
 
 // ---------- 原始 Body 与绑定 ----------
 
-// Body 返回原始请求体内容，多次调用返回相同结果。
+// Body	返回原始请求体内容，多次调用返回相同结果
+//
+// return:
+//   - 请求体字节内容
 func (ctx *Context) Body() []byte {
 	return ctx.readBody()
 }
 
-// BodyString 以字符串形式返回原始请求体内容。
+// BodyString	以字符串形式返回原始请求体内容
+//
+// return:
+//   - 请求体字符串内容
 func (ctx *Context) BodyString() string {
 	return string(ctx.readBody())
 }
 
-// BindJSON 将 JSON 请求体解码到目标结构体。
+// BindJSON	将 JSON 请求体解码到目标结构体
+//
+// param:
+//   - obj	目标结构体指针
+// return:
+//   - 解码过程中的错误
 func (ctx *Context) BindJSON(obj interface{}) error {
 	return json.NewDecoder(bytes.NewReader(ctx.readBody())).Decode(obj)
 }
 
-// readBody 读取并缓存请求体，同时恢复 Body 供表单解析等后续读取使用。
+// readBody	读取并缓存请求体，同时恢复 Body 供表单解析等后续读取使用
+//
+// return:
+//   - 请求体字节内容
 func (ctx *Context) readBody() []byte {
 	if ctx.body != nil {
 		return ctx.body
@@ -188,9 +272,14 @@ func (ctx *Context) readBody() []byte {
 	return data
 }
 
-// BindQuery 将 URL 查询参数绑定到目标结构体。
-// 字段通过 form 或 query 标签指定参数名，缺省使用字段名；标签值为 "-" 时跳过该字段。
-// 支持基本类型、指针以及基本类型切片（多值参数，如 ?tag=a&tag=b）。
+// BindQuery	将 URL 查询参数绑定到目标结构体
+// 字段通过 form 或 query 标签指定参数名，缺省使用字段名；标签值为 "-" 时跳过该字段
+// 支持基本类型、指针以及基本类型切片（多值参数，如 ?tag=a&tag=b）
+//
+// param:
+//   - obj	目标结构体指针
+// return:
+//   - 绑定过程中的错误
 func (ctx *Context) BindQuery(obj interface{}) error {
 	value := reflect.ValueOf(obj)
 	if value.Kind() != reflect.Ptr || value.IsNil() {
@@ -199,7 +288,13 @@ func (ctx *Context) BindQuery(obj interface{}) error {
 	return bindValues(value.Elem(), ctx.queryParams())
 }
 
-// bindValues 将 url.Values 绑定到结构体。
+// bindValues	将 url.Values 绑定到结构体
+//
+// param:
+//   - v	目标结构体反射值
+//   - values	参数集合
+// return:
+//   - 绑定过程中的错误
 func bindValues(v reflect.Value, values url.Values) error {
 	if v.Kind() != reflect.Struct {
 		return fmt.Errorf("context: 绑定目标必须是结构体")
@@ -229,7 +324,12 @@ func bindValues(v reflect.Value, values url.Values) error {
 	return nil
 }
 
-// bindFieldName 解析字段对应的参数名，依次尝试 form、query 标签，缺省用字段名。
+// bindFieldName	解析字段对应的参数名，依次尝试 form、query 标签，缺省用字段名
+//
+// param:
+//   - field	结构体字段信息
+// return:
+//   - 参数名
 func bindFieldName(field reflect.StructField) string {
 	for _, tag := range []string{"form", "query"} {
 		if name := field.Tag.Get(tag); name != "" {
@@ -239,7 +339,13 @@ func bindFieldName(field reflect.StructField) string {
 	return field.Name
 }
 
-// setBindField 将参数值写入字段，切片类型按多值处理，其余取第一个值。
+// setBindField	将参数值写入字段，切片类型按多值处理，其余取第一个值
+//
+// param:
+//   - field	目标字段反射值
+//   - raw	参数值列表
+// return:
+//   - 写入过程中的错误
 func setBindField(field reflect.Value, raw []string) error {
 	if field.Kind() == reflect.Slice {
 		return setBindSlice(field, raw)
@@ -247,7 +353,13 @@ func setBindField(field reflect.Value, raw []string) error {
 	return setBindScalar(field, raw[0])
 }
 
-// setBindSlice 将多值参数写入基本类型切片。
+// setBindSlice	将多值参数写入基本类型切片
+//
+// param:
+//   - field	目标切片字段反射值
+//   - raw	参数值列表
+// return:
+//   - 写入过程中的错误
 func setBindSlice(field reflect.Value, raw []string) error {
 	elemType := field.Type().Elem()
 	slice := reflect.MakeSlice(field.Type(), 0, len(raw))
@@ -262,7 +374,13 @@ func setBindSlice(field reflect.Value, raw []string) error {
 	return nil
 }
 
-// setBindScalar 将字符串按字段基本类型转换并写入，支持指针类型。
+// setBindScalar	将字符串按字段基本类型转换并写入，支持指针类型
+//
+// param:
+//   - field	目标字段反射值
+//   - s	字符串值
+// return:
+//   - 转换或写入过程中的错误
 func setBindScalar(field reflect.Value, s string) error {
 	if field.Kind() == reflect.Ptr {
 		if field.IsNil() {

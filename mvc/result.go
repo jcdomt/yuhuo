@@ -8,7 +8,7 @@ import (
 // MVC 模式的推荐响应体
 // 作为一个标准的响应体，建议所有的接口都返回该结构体
 // 应当是其他响应模式兼容本结构体
-// 总而言之，本结构体是对一次请求的最终封装。一切以本结构体为主
+// 总而言之，本结构体是对一次请求的最终封装一切以本结构体为主
 type Result interface {
 	Execute(ctx *requestcontext.Context)
 }
@@ -20,10 +20,13 @@ var (
 )
 
 type Response struct {
+	// Code 业务状态码
 	Code int
 
+	// ContentType 响应 Content-Type，支持 text/plain、text/html、application/json
 	ContentType string
-	Content     []byte
+	// Content 原始响应内容
+	Content []byte
 
 	// 错误信息，优先级最高
 	// 如果 Error.IsError() 返回 true，则直接返回错误信息，忽略其他响应
@@ -37,6 +40,10 @@ type Response struct {
 	JSON interface{}
 }
 
+// Execute	将响应写入请求上下文
+//
+// param:
+//   - ctx	请求上下文
 func (r Response) Execute(ctx *requestcontext.Context) {
 	if r.Error != nil && r.Error.IsError() {
 		ctx.JSONs(r.Error.ErrorCode(), context.M{"error": r.Error.Error(), "code": r.Error.ErrorCode()})
@@ -69,8 +76,12 @@ func (r Response) Execute(ctx *requestcontext.Context) {
 	}
 }
 
+// ErrorResponse 描述一个错误响应
 type ErrorResponse interface {
+	// IsError 判断是否为错误响应
 	IsError() bool
+	// ErrorCode 返回错误状态码
 	ErrorCode() int
+	// Error 返回错误信息
 	Error() string
 }

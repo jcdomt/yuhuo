@@ -2,11 +2,14 @@ package framework
 
 import requestcontext "github.com/jcdomt/yuhuo"
 
-// ReadJSON 读取请求体 JSON 并校验，返回 ApiResponse。
+// ReadJSON	读取请求体 JSON 并校验，返回 ApiResponse
 // 这是对 JSON 请求体读取的最高封装，将大部分功能都集成了
-// ctx: 请求上下文
-// result: 绑定的结果对象，必须是指针类型
-// 返回值: ApiResponse，包含错误信息或成功信息
+//
+// param:
+//   - ctx	请求上下文
+//   - result	绑定的结果对象，必须是指针类型
+// return:
+//   - ApiResponse，包含错误信息或成功信息
 func ReadJSON(ctx requestcontext.Context, result interface{}) ApiResponse {
 	if err := ctx.BindJSON(result); err != nil {
 		return ApiResponse_ParamError
@@ -31,11 +34,13 @@ func ReadJSON(ctx requestcontext.Context, result interface{}) ApiResponse {
 
 }
 
+// ReadQuery	读取查询参数并校验，返回 ApiResponse
 //
-// ReadQuery 读取查询参数并校验，返回 ApiResponse。
-// ctx: 请求上下文
-// result: 绑定的结果对象，必须是指针类型
-// 返回值: ApiResponse，包含错误信息或成功信息
+// param:
+//   - ctx	请求上下文
+//   - result	绑定的结果对象，必须是指针类型
+// return:
+//   - ApiResponse，包含错误信息或成功信息
 func ReadQuery(ctx requestcontext.Context, result interface{}) ApiResponse {
 	if err := ctx.BindQuery(result); err != nil {
 		return ApiResponse_ParamError

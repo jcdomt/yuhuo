@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// SetDefaults 为结构体中带 default 标签的字段注入默认值。
-// 注入条件：validate 标签中不含 required、字段当前为零值（用户未输入）、default 值非空。
-// 支持基本类型及其指针，并递归处理嵌套结构体。
+// SetDefaults	为结构体中带 default 标签的字段注入默认值
+// 注入条件：validate 标签中不含 required、字段当前为零值（用户未输入）、default 值非空
+// 支持基本类型及其指针，并递归处理嵌套结构体
 //
 // 示例：
 //
@@ -17,6 +17,11 @@ import (
 //		Name string `json:"name" validate:"max=10" default:"guest"`
 //		Age  int    `json:"age" validate:"min=1" default:"18"`
 //	}
+//
+// param:
+//   - obj	目标结构体指针
+// return:
+//   - 注入过程中的错误
 func SetDefaults(obj interface{}) error {
 	value := reflect.ValueOf(obj)
 	if value.Kind() != reflect.Ptr || value.IsNil() {
@@ -25,6 +30,12 @@ func SetDefaults(obj interface{}) error {
 	return setDefaults(value.Elem())
 }
 
+// setDefaults	递归为结构体字段注入默认值
+//
+// param:
+//   - value	结构体反射值
+// return:
+//   - 注入过程中的错误
 func setDefaults(value reflect.Value) error {
 	if value.Kind() != reflect.Struct {
 		return nil
@@ -65,7 +76,12 @@ func setDefaults(value reflect.Value) error {
 	return nil
 }
 
-// setDefaultsField 递归进入嵌套结构体字段（含指针）。
+// setDefaultsField	递归进入嵌套结构体字段（含指针）
+//
+// param:
+//   - field	字段反射值
+// return:
+//   - 注入过程中的错误
 func setDefaultsField(field reflect.Value) error {
 	if field.Kind() == reflect.Ptr {
 		if field.IsNil() {
@@ -76,7 +92,12 @@ func setDefaultsField(field reflect.Value) error {
 	return setDefaults(field)
 }
 
-// isRequired 判断 validate 标签中是否包含 required 规则。
+// isRequired	判断 validate 标签中是否包含 required 规则
+//
+// param:
+//   - validateTag	validate 标签内容
+// return:
+//   - 是否包含 required 规则
 func isRequired(validateTag string) bool {
 	for _, rule := range strings.Split(validateTag, ",") {
 		if strings.TrimSpace(rule) == "required" {
@@ -86,7 +107,13 @@ func isRequired(validateTag string) bool {
 	return false
 }
 
-// setField 将字符串默认值写入字段，支持指针类型。
+// setField	将字符串默认值写入字段，支持指针类型
+//
+// param:
+//   - field	目标字段反射值
+//   - value	默认值字符串
+// return:
+//   - 写入过程中的错误
 func setField(field reflect.Value, value string) error {
 	if field.Kind() == reflect.Ptr {
 		if field.IsNil() {
@@ -97,7 +124,13 @@ func setField(field reflect.Value, value string) error {
 	return setBasic(field, value)
 }
 
-// setBasic 将字符串默认值按字段基本类型转换并写入。
+// setBasic	将字符串默认值按字段基本类型转换并写入
+//
+// param:
+//   - field	目标字段反射值
+//   - value	默认值字符串
+// return:
+//   - 转换或写入过程中的错误
 func setBasic(field reflect.Value, value string) error {
 	if !field.CanSet() {
 		return fmt.Errorf("字段不可设置")
