@@ -102,11 +102,14 @@ func (v *Validator) Validate(obj interface{}) []string {
 	return nil
 }
 
-// BindJSONAndValidate 绑定 JSON 到 obj 并校验，返回翻译后的错误消息（通过时为 nil）。
+// BindJSONAndValidate 绑定 JSON 到 obj、注入默认值并校验，返回翻译后的错误消息（通过时为 nil）。
 // 请求体解析失败时返回解析错误信息。
 func BindJSONAndValidate(ctx *requestcontext.Context, obj interface{}) []string {
 	if err := ctx.BindJSON(obj); err != nil {
 		return []string{"请求体解析失败：" + err.Error()}
+	}
+	if err := SetDefaults(obj); err != nil {
+		return []string{"默认值注入失败：" + err.Error()}
 	}
 	return DefaultValidator().Validate(obj)
 }

@@ -2,6 +2,10 @@ package framework
 
 import "github.com/jcdomt/yuhuo/mvc"
 
+// 一些系统自带的报错
+var ApiResponse_ParamError = Api(400, "请求参数格式错误", nil)
+var ApiResponse_OK = OK()
+
 type ApiResponse struct {
 	Code int         `json:"code"`
 	Msg  string      `json:"msg"`

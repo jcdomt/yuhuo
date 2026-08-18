@@ -44,6 +44,32 @@ func TestFrameworkBindJSONAndValidate(t *testing.T) {
 	}
 }
 
+func TestFrameworkBindJSONAndValidateAppliesDefaults(t *testing.T) {
+	app := yuhuo.New()
+	type payload struct {
+		Name string `json:"name" validate:"required"`
+		Age  int    `json:"age" validate:"min=1" default:"18"`
+	}
+	app.POST("/v", func(ctx *yuhuo.Context) {
+		var req payload
+		if errs := framework.BindJSONAndValidate(ctx, &req); errs != nil {
+			ctx.JSONs(http.StatusBadRequest, yuhuo.M{"errors": errs})
+			return
+		}
+		ctx.JSON(yuhuo.M{"name": req.Name, "age": req.Age})
+	})
+
+	response := httptest.NewRecorder()
+	app.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v", strings.NewReader(`{"name":"alice"}`)))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if body := response.Body.String(); body != `{"age":18,"name":"alice"}` {
+		t.Fatalf("body = %q, want 默认值注入后 {\"age\":18,\"name\":\"alice\"}", body)
+	}
+}
+
 func TestFrameworkBindJSONAndValidateBadJSON(t *testing.T) {
 	app := yuhuo.New()
 	type payload struct {
