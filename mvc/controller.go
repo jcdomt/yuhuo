@@ -147,6 +147,13 @@ func controllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newContr
 		if len(results) != 1 {
 			panic("yuhuo/mvc: controller method must return exactly one value: " + methodName)
 		}
+
+		// 判断函数返回值是否是 mvc.Result 类型，如果是则调用其 Execute 方法，否则直接返回 JSON。
+		if result, ok := results[0].Interface().(Result); ok {
+			result.Execute(ctx)
+			return
+		}
+
 		ctx.JSON(results[0].Interface())
 	}
 }

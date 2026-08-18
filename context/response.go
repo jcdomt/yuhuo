@@ -76,3 +76,7 @@ func (ctx *Context) RedirectWithStatus(statusCode int, location string) {
 func (ctx *Context) File(path string) {
 	http.ServeFile(ctx.response, ctx.request, path)
 }
+
+func (ctx *Context) Header(key, value string) {
+	ctx.response.Header().Set(key, value)
+}
