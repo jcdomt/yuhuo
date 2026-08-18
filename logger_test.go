@@ -30,12 +30,18 @@ func captureStdout(t *testing.T, fn func()) string {
 	return string(output)
 }
 
-func TestDefaultLoggerPrintsDebugByDefault(t *testing.T) {
+func TestDefaultLoggerDefaultsToInfo(t *testing.T) {
 	logger := yuhuo.GetDefaultLogger()
 
-	output := captureStdout(t, func() { logger.Debug("debug") })
-	if !strings.Contains(output, "[DEBUG]") {
-		t.Fatalf("默认级别应输出 Debug 日志, got %q", output)
+	output := captureStdout(t, func() {
+		logger.Debug("debug")
+		logger.Info("info")
+	})
+	if strings.Contains(output, "[DEBUG]") {
+		t.Fatalf("默认级别（INFO）不应输出 Debug 日志, got %q", output)
+	}
+	if !strings.Contains(output, "[INFO]") {
+		t.Fatalf("默认级别（INFO）应输出 Info 日志, got %q", output)
 	}
 }
 

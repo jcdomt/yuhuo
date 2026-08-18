@@ -1,4 +1,4 @@
-package framerwork
+package framework
 
 import "github.com/jcdomt/yuhuo/mvc"
 
@@ -22,10 +22,6 @@ func (r *ApiResponse) Error() bool {
 }
 
 func Api(code int, msg string, data interface{}) ApiResponse {
-	if dataMap, ok := data.(map[string]interface{}); ok {
-		dataMap["code"] = code
-		dataMap["msg"] = msg
-	}
 	return ApiResponse{
 		Code: code,
 		Msg:  msg,

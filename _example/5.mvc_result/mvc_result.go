@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/jcdomt/yuhuo"
+	"github.com/jcdomt/yuhuo/framework"
 	"github.com/jcdomt/yuhuo/mvc"
 )
 
