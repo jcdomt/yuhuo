@@ -23,7 +23,7 @@ type ApiResponse struct {
 //
 // return:
 //   - JSON 形式的 mvc.Result
-func (r *ApiResponse) Response() mvc.Result {
+func (r ApiResponse) Response() mvc.Result {
 	return mvc.Response{
 		Code:        r.Code,
 		ContentType: mvc.ContentTypeJSON,
@@ -35,7 +35,7 @@ func (r *ApiResponse) Response() mvc.Result {
 //
 // return:
 //   - 是否为错误响应
-func (r *ApiResponse) Error() bool {
+func (r ApiResponse) Error() bool {
 	// 如果 Code 不在 200-299 范围内，则认为是错误
 	return r.Code/100 != 2
 }

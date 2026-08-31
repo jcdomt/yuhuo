@@ -67,14 +67,20 @@ func getControllerBaseUrl(controller interface{}) string {
 	// 优先使用 controller.BaseController.BaseUrl，如果没有设置，则使用 controller.BaseUrl
 	// 如果都没有设置，则返回空字符串
 	reflectValue := reflect.ValueOf(controller)
-	baseControllerBaseUrlField := reflectValue.Elem().FieldByName("BaseController").FieldByName("BaseUrl")
-	if baseControllerBaseUrlField.IsValid() && baseControllerBaseUrlField.Kind() == reflect.String {
-		str := baseControllerBaseUrlField.String()
-		if str != "" {
-			return str
+	if reflectValue.Kind() == reflect.Ptr {
+		reflectValue = reflectValue.Elem()
+	}
+	baseControllerField := reflectValue.FieldByName("BaseController")
+	if baseControllerField.IsValid() {
+		baseControllerBaseUrlField := baseControllerField.FieldByName("BaseUrl")
+		if baseControllerBaseUrlField.IsValid() && baseControllerBaseUrlField.Kind() == reflect.String {
+			str := baseControllerBaseUrlField.String()
+			if str != "" {
+				return str
+			}
 		}
 	}
-	baseUrlField := reflectValue.Elem().FieldByName("BaseUrl")
+	baseUrlField := reflectValue.FieldByName("BaseUrl")
 	if baseUrlField.IsValid() && baseUrlField.Kind() == reflect.String {
 		return baseUrlField.String()
 	}

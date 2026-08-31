@@ -72,8 +72,11 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 		panic("yuhuo/mvc: controller function must be a function")
 	}
 	handlerType := handlerValue.Type()
-	if handlerType.NumIn() != 0 || handlerType.NumOut() != 1 {
-		panic("yuhuo/mvc: controller function must have no parameters and exactly one return value")
+	// 2026.08.31 更新
+	// 决定将 控制器函数的参数实现自动注入输入参数，所以不再限制参数数量为 0
+	// 但是仍然要求返回值为 1 个
+	if (handlerType.NumIn() != 0 && false) || handlerType.NumOut() != 1 {
+		panic("yuhuo/mvc: controller function must have one return value")
 	}
 
 	fullPath := joinControllerPath(router.prefix, path)
@@ -93,6 +96,19 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 //   - 请求处理函数
 func anyControllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newController func() reflect.Value) requestcontext.HandlerFunc {
 	handlerValue := reflect.ValueOf(handler)
+
+	// 做函数输入判断
+	// 如果函数存在参数，就要准备在请求到达时注入
+	handlerType := reflect.TypeOf(handler)
+	paramMap := make(map[string]reflect.Type)
+	if handlerType.NumIn() > 0 {
+		// 生成参数类型表
+		handlerTypeIn := make([]reflect.Type, handlerType.NumIn())
+		for i := 0; i < handlerType.NumIn(); i++ {
+			handlerTypeIn[i] = handlerType.In(i)
+			paramMap[handlerTypeIn[i].Name()] = handlerTypeIn[i]
+		}
+	}
 
 	methodName, isControllerMethod := controllerMethodName(handler)
 	if !isControllerMethod || newController == nil {
