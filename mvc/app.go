@@ -13,6 +13,7 @@ type Application struct {
 //
 // param:
 //   - router	目标路由组，需实现 ControllerRouteGroup 接口
+//
 // return:
 //   - MVC 注册器
 func New(router ControllerRouteGroup) *Application {
@@ -26,6 +27,7 @@ func New(router ControllerRouteGroup) *Application {
 //
 // param:
 //   - controllers	控制器列表，需实现 Router(ControllerRouter) 方法
+//
 // return:
 //   - 当前 MVC 注册器，便于链式调用
 func (app *Application) Handle(controllers ...interface{}) *Application {
@@ -46,8 +48,37 @@ func RegisterControllerWithRouteGroup(routeGroup ControllerRouteGroup, controlle
 	}
 	factory := newControllerFactory(controller)
 	if c, ok := controller.(interface{ Router(ControllerRouter) }); ok {
-		c.Router(ControllerRouter{group: routeGroup, newController: factory})
+		// 判断控制器是否申明了 BaseUrl 参数
+		// 如果控制器设置了 BaseUrl，则将其作为前缀注册路由
+		baseUrl := getControllerBaseUrl(c)
+		c.Router(ControllerRouter{group: routeGroup, newController: factory, prefix: baseUrl})
 	}
+}
+
+// getControllerBaseUrl	获取控制器的基础前缀
+//
+// param:
+//   - controller	控制器实例
+//
+// return:
+//   - 控制器的基础前缀，如果控制器未设置 BaseUrl，则返回空字符串
+func getControllerBaseUrl(controller interface{}) string {
+	// 我们是设置了 BaseUrl 的优先级的
+	// 优先使用 controller.BaseController.BaseUrl，如果没有设置，则使用 controller.BaseUrl
+	// 如果都没有设置，则返回空字符串
+	reflectValue := reflect.ValueOf(controller)
+	baseControllerBaseUrlField := reflectValue.Elem().FieldByName("BaseController").FieldByName("BaseUrl")
+	if baseControllerBaseUrlField.IsValid() && baseControllerBaseUrlField.Kind() == reflect.String {
+		str := baseControllerBaseUrlField.String()
+		if str != "" {
+			return str
+		}
+	}
+	baseUrlField := reflectValue.Elem().FieldByName("BaseUrl")
+	if baseUrlField.IsValid() && baseUrlField.Kind() == reflect.String {
+		return baseUrlField.String()
+	}
+	return ""
 }
 
 // newControllerFactory	为每个请求创建一个独立的控制器副本
@@ -55,6 +86,7 @@ func RegisterControllerWithRouteGroup(routeGroup ControllerRouteGroup, controlle
 //
 // param:
 //   - controller	控制器原型
+//
 // return:
 //   - 控制器工厂函数
 func newControllerFactory(controller interface{}) func() reflect.Value {

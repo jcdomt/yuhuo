@@ -19,7 +19,8 @@ type ControllerRouteGroup interface {
 
 // BaseController 为控制器提供当前请求上下文的约定字段
 type BaseController struct {
-	Ctx *requestcontext.Context
+	Ctx     *requestcontext.Context
+	BaseUrl string
 }
 
 // ControllerRouter 是控制器声明路由时使用的受限接口
@@ -27,6 +28,17 @@ type ControllerRouter struct {
 	group         ControllerRouteGroup
 	prefix        string
 	newController func() reflect.Value
+}
+
+// SetBaseUrl	设置改控制器的基础前缀，使得该控制器的所有路由都以该前缀开头
+//
+// param:
+//   - prefix	基础前缀
+func (router ControllerRouter) SetBaseUrl(prefix string) {
+	if router.group == nil {
+		panic("yuhuo/mvc: controller router is not initialized")
+	}
+	router.prefix = prefix
 }
 
 // Handle	按 HTTP 方法注册控制器路由，日志中附带处理器方法的定义位置
@@ -51,6 +63,7 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 // param:
 //   - handler	控制器处理函数
 //   - newController	控制器工厂函数
+//
 // return:
 //   - 定义位置，无法解析时返回空字符串
 func controllerFuncSource(handler requestcontext.ControllerFunc, newController func() reflect.Value) string {
@@ -74,6 +87,7 @@ func controllerFuncSource(handler requestcontext.ControllerFunc, newController f
 // param:
 //   - newController	控制器工厂函数
 //   - methodName	方法名
+//
 // return:
 //   - 方法定义位置，无法解析时返回空字符串
 func controllerMethodSource(newController func() reflect.Value, methodName string) string {
@@ -96,6 +110,7 @@ func controllerMethodSource(newController func() reflect.Value, methodName strin
 // param:
 //   - controllerType	控制器类型
 //   - methodName	方法名
+//
 // return:
 //   - 方法定义位置，无法解析时返回空字符串
 func methodSourceOnType(controllerType reflect.Type, methodName string) string {
@@ -136,6 +151,7 @@ func (router ControllerRouter) Group(path string, fn func(r ControllerRouter)) {
 // param:
 //   - prefix	路由前缀
 //   - path	相对路径
+//
 // return:
 //   - 合并后的完整路径
 func joinControllerPath(prefix, path string) string {
@@ -160,6 +176,7 @@ func joinControllerPath(prefix, path string) string {
 // param:
 //   - handler	控制器处理函数
 //   - newController	控制器工厂函数
+//
 // return:
 //   - 请求处理函数
 func controllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newController func() reflect.Value) requestcontext.HandlerFunc {
@@ -203,6 +220,7 @@ func controllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newContr
 //
 // param:
 //   - handler	控制器处理函数
+//
 // return:
 //   - 方法名及是否为具名控制器方法
 func controllerMethodName(handler requestcontext.ControllerFunc) (string, bool) {
@@ -236,6 +254,7 @@ func injectControllerContext(controller reflect.Value, ctx *requestcontext.Conte
 // param:
 //   - value	控制器结构体反射值
 //   - ctx	请求上下文
+//
 // return:
 //   - 是否成功注入
 func setBaseControllerContext(value reflect.Value, ctx *requestcontext.Context) bool {
