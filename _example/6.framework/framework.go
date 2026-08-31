@@ -14,7 +14,7 @@ func (c *Controller) Router(r mvc.ControllerRouter) {
 	r.GET("/hello", c.Hello)
 }
 
-func (c *Controller) Hello() interface{} {
+func (c *Controller) Hello() string {
 	return "Hello from sub_app!"
 }
 

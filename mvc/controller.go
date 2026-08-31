@@ -53,8 +53,79 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 		panic("yuhuo/mvc: controller router is not initialized")
 	}
 
+	// 2026.08.31 更新
+	// 当 handler 还是 func() interface{} 类型时，说明是原来的 ControllerFunc 类型定义，直接注册即可
+	if h, ok := handler.(requestcontext.NotAnyControllerFunc); ok {
+		fullPath := joinControllerPath(router.prefix, path)
+		router.group.HandleWithSource(method, fullPath,
+			controllerFuncToHandlerFunc(h, router.newController),
+			controllerFuncSource(h, router.newController), middlewares...)
+
+		return
+	}
+
+	// 如果注册的 handler 是 任意类型，则使用反射解析
+	// e.g. func (c Controller) Hello string，这样的函数签名是 func() string，而不是 func() interface{}
+	// 此时我们需要使用反射来解析函数签名，并在运行时调用它
+	handlerValue := reflect.ValueOf(handler)
+	if handlerValue.Kind() != reflect.Func {
+		panic("yuhuo/mvc: controller function must be a function")
+	}
+	handlerType := handlerValue.Type()
+	if handlerType.NumIn() != 0 || handlerType.NumOut() != 1 {
+		panic("yuhuo/mvc: controller function must have no parameters and exactly one return value")
+	}
+
 	fullPath := joinControllerPath(router.prefix, path)
-	router.group.HandleWithSource(method, fullPath, controllerFuncToHandlerFunc(handler, router.newController), controllerFuncSource(handler, router.newController), middlewares...)
+	router.group.HandleWithSource(method, fullPath,
+		anyControllerFuncToHandlerFunc(handler, router.newController),
+		controllerFuncSource(handler, router.newController), middlewares...)
+}
+
+// anyControllerFuncToHandlerFunc	将任意返回类型的控制器函数转换为请求处理函数
+// 仅支持无参数且只有一个返回值的函数，具名控制器方法会在每次请求时创建独立实例并注入 Context
+//
+// param:
+//   - handler	控制器处理函数
+//   - newController	控制器工厂函数
+//
+// return:
+//   - 请求处理函数
+func anyControllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newController func() reflect.Value) requestcontext.HandlerFunc {
+	handlerValue := reflect.ValueOf(handler)
+
+	methodName, isControllerMethod := controllerMethodName(handler)
+	if !isControllerMethod || newController == nil {
+		return func(ctx *requestcontext.Context) {
+			writeControllerResult(ctx, handlerValue.Call(nil)[0])
+		}
+	}
+
+	return func(ctx *requestcontext.Context) {
+		controller := newController()
+		injectControllerContext(controller, ctx)
+
+		method := controller.MethodByName(methodName)
+		if !method.IsValid() {
+			panic("yuhuo/mvc: controller method not found: " + methodName)
+		}
+
+		writeControllerResult(ctx, method.Call(nil)[0])
+	}
+}
+
+// writeControllerResult	将控制器返回值写入响应
+// 返回值为 mvc.Result 类型时调用其 Execute 方法，否则直接返回 JSON
+//
+// param:
+//   - ctx	请求上下文
+//   - value	控制器返回值
+func writeControllerResult(ctx *requestcontext.Context, value reflect.Value) {
+	if result, ok := value.Interface().(Result); ok {
+		result.Execute(ctx)
+		return
+	}
+	ctx.JSON(value.Interface())
 }
 
 // controllerFuncSource	解析控制器函数（具名方法或匿名函数）的定义位置
@@ -179,7 +250,7 @@ func joinControllerPath(prefix, path string) string {
 //
 // return:
 //   - 请求处理函数
-func controllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newController func() reflect.Value) requestcontext.HandlerFunc {
+func controllerFuncToHandlerFunc(handler requestcontext.NotAnyControllerFunc, newController func() reflect.Value) requestcontext.HandlerFunc {
 	if handler == nil {
 		panic("yuhuo/mvc: controller function must not be nil")
 	}
@@ -205,13 +276,7 @@ func controllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newContr
 			panic("yuhuo/mvc: controller method must return exactly one value: " + methodName)
 		}
 
-		// 判断函数返回值是否是 mvc.Result 类型，如果是则调用其 Execute 方法，否则直接返回 JSON
-		if result, ok := results[0].Interface().(Result); ok {
-			result.Execute(ctx)
-			return
-		}
-
-		ctx.JSON(results[0].Interface())
+		writeControllerResult(ctx, results[0])
 	}
 }
 
