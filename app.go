@@ -94,15 +94,17 @@ func (app *Application) ServeHTTP(w http.ResponseWriter, r *http.Request) { app.
 //
 // param:
 //   - addr	服务监听地址
+//
 // return:
 //   - 启动服务过程中的错误，正常关闭返回 nil
 func (app *Application) Run(addr string) error {
+	app.config.Addr = addr
+
 	// 如果配置了优雅关闭，则调用 RunWithGracefulShutdown 方法启动服务
 	if app.config.RunWithGracefulShutdown {
 		return app.RunWithGracefulShutdown(app.config.Addr)
 	}
 
-	app.config.Addr = addr
 	app.server = &http.Server{Addr: app.config.Addr, Handler: app.router, ReadTimeout: app.config.ReadTimeout, WriteTimeout: app.config.WriteTimeout, IdleTimeout: app.config.IdleTimeout}
 	app.logger.Info("启动服务器：", app.config.Addr)
 	err := app.server.ListenAndServe()
@@ -116,6 +118,7 @@ func (app *Application) Run(addr string) error {
 //
 // param:
 //   - ctx	关闭上下文，用于控制关闭超时
+//
 // return:
 //   - 关闭过程中的错误
 func (app *Application) Shutdown(ctx context.Context) error {
@@ -130,6 +133,7 @@ func (app *Application) Shutdown(ctx context.Context) error {
 //
 // param:
 //   - addr	服务监听地址
+//
 // return:
 //   - 服务运行过程中的错误，优雅关闭时返回 nil
 func (app *Application) RunWithGracefulShutdown(addr string) error {
