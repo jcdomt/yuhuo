@@ -80,7 +80,8 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 
 	fullPath := joinControllerPath(router.prefix, path)
 	// 注册时为每个输入参数构建解析器，请求到达时按类型注入
-	resolvers := buildParamResolvers(handlerType, fullPath)
+	// 参数名来自源码解析（见 controllerParamNames），用于基本类型参数按名匹配路径参数
+	resolvers := buildParamResolvers(handlerType, fullPath, controllerParamNames(handler, router.newController, handlerType.NumIn()))
 
 	router.group.HandleWithSource(method, fullPath,
 		anyControllerFuncToHandlerFunc(handler, router.newController, resolvers),

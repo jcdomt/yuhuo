@@ -38,7 +38,7 @@ func (c UserController) List(query UserQuery) interface{} {
 	}
 }
 
-// Get 基本类型参数按声明顺序消费路径参数 :id，转换失败会返回 400
+// Get 基本类型参数优先按参数名匹配路径参数（id 匹配 :id），无法匹配时按声明顺序消费，转换失败会返回 400
 func (c UserController) Get(id int) yuhuo.M {
 	return yuhuo.M{"id": id}
 }

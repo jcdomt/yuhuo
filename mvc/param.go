@@ -22,26 +22,35 @@ var contextPtrType = reflect.TypeOf((*requestcontext.Context)(nil))
 // 参数注入规则按类型分派：
 //  1. *requestcontext.Context 直接注入请求上下文
 //  2. 结构体（或结构体指针）绑定请求数据，JSON 请求体走 BindJSON，否则走 BindQuery
-//  3. 基本类型（string/bool/int/uint/float）按声明顺序依次消费路由路径参数（如 /users/:id）
+//  3. 基本类型（string/bool/int/uint/float）注入路由路径参数（如 /users/:id）：
+//     优先按参数名与路径参数名匹配（参数名来自源码解析，见 controllerParamNames），
+//     无法按名匹配时按声明顺序消费剩余路径参数
 //
 // 不支持的参数类型或路径参数不足时在注册时 panic，保证错误尽早暴露
 //
 // param:
 //   - handlerType	控制器函数类型
 //   - pattern	完整路由路径
+//   - paramNames	参数名列表，为 nil 或数量不符时全部按顺序注入
 //
 // return:
 //   - 与参数一一对应的解析器列表
-func buildParamResolvers(handlerType reflect.Type, pattern string) []paramResolver {
+func buildParamResolvers(handlerType reflect.Type, pattern string, paramNames []string) []paramResolver {
 	numIn := handlerType.NumIn()
 	if numIn == 0 {
 		return nil
 	}
+	if len(paramNames) != numIn {
+		paramNames = nil
+	}
 
 	// 解析 /user/:id 形式的路径参数名，并获取每个参数的名称
 	pathParams := pathParamNames(pattern)
-	pathIndex := 0
+	usedPath := make([]bool, len(pathParams))
 	resolvers := make([]paramResolver, numIn)
+
+	// 先处理上下文与结构体参数，收集需要匹配路径参数的基本类型参数
+	scalars := make([]int, 0, numIn)
 	for i := 0; i < numIn; i++ {
 		paramType := handlerType.In(i)
 		switch {
@@ -53,17 +62,49 @@ func buildParamResolvers(handlerType reflect.Type, pattern string) []paramResolv
 		// 类型为结构体或结构体指针时，按请求体 JSON 或查询参数绑定
 		case isStructParam(paramType):
 			resolvers[i] = newStructResolver(paramType)
-		// 基本类型参数按声明顺序消费路径参数
+		// 基本类型参数注入路径参数，先按名匹配，后按顺序
 		case isScalarKind(paramType.Kind()):
-			if pathIndex >= len(pathParams) {
-				panic(fmt.Sprintf("yuhuo/mvc: controller parameter %d (%s) has no matching path parameter in pattern %q", i, paramType, pattern))
-			}
-			// 允许该参数按顺序取得路径参数值，并转换为目标类型
-			resolvers[i] = newPathParamResolver(pathParams[pathIndex], paramType)
-			pathIndex++
+			scalars = append(scalars, i)
 		default:
 			panic(fmt.Sprintf("yuhuo/mvc: unsupported controller parameter type %s (parameter %d)", paramType, i))
 		}
+	}
+
+	// 第一遍：按参数名匹配路径参数，如 (id int) 匹配 /users/:id
+	unmatched := make([]int, 0, len(scalars))
+	for _, i := range scalars {
+		name := ""
+		if paramNames != nil {
+			name = paramNames[i]
+		}
+		matched := false
+		if name != "" {
+			for j, pathParam := range pathParams {
+				if !usedPath[j] && pathParam == name {
+					resolvers[i] = newPathParamResolver(pathParam, handlerType.In(i))
+					usedPath[j] = true
+					matched = true
+					break
+				}
+			}
+		}
+		if !matched {
+			unmatched = append(unmatched, i)
+		}
+	}
+
+	// 第二遍：未按名匹配的参数按声明顺序消费剩余路径参数
+	next := 0
+	for _, i := range unmatched {
+		for next < len(pathParams) && usedPath[next] {
+			next++
+		}
+		if next >= len(pathParams) {
+			panic(fmt.Sprintf("yuhuo/mvc: controller parameter %d (%s) has no matching path parameter in pattern %q", i, handlerType.In(i), pattern))
+		}
+		// 允许该参数按顺序取得路径参数值，并转换为目标类型
+		resolvers[i] = newPathParamResolver(pathParams[next], handlerType.In(i))
+		usedPath[next] = true
 	}
 	return resolvers
 }
