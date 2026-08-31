@@ -73,47 +73,51 @@ func (router ControllerRouter) Handle(method, path string, handler requestcontex
 	}
 	handlerType := handlerValue.Type()
 	// 2026.08.31 更新
-	// 决定将 控制器函数的参数实现自动注入输入参数，所以不再限制参数数量为 0
-	// 但是仍然要求返回值为 1 个
-	if (handlerType.NumIn() != 0 && false) || handlerType.NumOut() != 1 {
-		panic("yuhuo/mvc: controller function must have one return value")
+	// 控制器函数支持自动注入输入参数（见 buildParamResolvers），仅要求恰好一个返回值
+	if handlerType.NumOut() != 1 {
+		panic("yuhuo/mvc: controller function must have exactly one return value")
 	}
 
 	fullPath := joinControllerPath(router.prefix, path)
+	// 注册时为每个输入参数构建解析器，请求到达时按类型注入
+	resolvers := buildParamResolvers(handlerType, fullPath)
+
 	router.group.HandleWithSource(method, fullPath,
-		anyControllerFuncToHandlerFunc(handler, router.newController),
+		anyControllerFuncToHandlerFunc(handler, router.newController, resolvers),
 		controllerFuncSource(handler, router.newController), middlewares...)
 }
 
-// anyControllerFuncToHandlerFunc	将任意返回类型的控制器函数转换为请求处理函数
-// 仅支持无参数且只有一个返回值的函数，具名控制器方法会在每次请求时创建独立实例并注入 Context
+// anyControllerFuncToHandlerFunc	将任意签名的控制器函数转换为请求处理函数
+// 具名控制器方法会在每次请求时创建独立实例并注入 Context
+// 输入参数由 resolvers 在请求到达时解析注入（见 buildParamResolvers）
 //
 // param:
 //   - handler	控制器处理函数
 //   - newController	控制器工厂函数
+//   - resolvers	参数解析器列表，与函数输入参数一一对应
 //
 // return:
 //   - 请求处理函数
-func anyControllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newController func() reflect.Value) requestcontext.HandlerFunc {
+func anyControllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newController func() reflect.Value, resolvers []paramResolver) requestcontext.HandlerFunc {
 	handlerValue := reflect.ValueOf(handler)
 
-	// 做函数输入判断
-	// 如果函数存在参数，就要准备在请求到达时注入
-	handlerType := reflect.TypeOf(handler)
-	paramMap := make(map[string]reflect.Type)
-	if handlerType.NumIn() > 0 {
-		// 生成参数类型表
-		handlerTypeIn := make([]reflect.Type, handlerType.NumIn())
-		for i := 0; i < handlerType.NumIn(); i++ {
-			handlerTypeIn[i] = handlerType.In(i)
-			paramMap[handlerTypeIn[i].Name()] = handlerTypeIn[i]
+	call := func(ctx *requestcontext.Context, callable reflect.Value) {
+		// 使用 resolveParams 解析参数，并按顺序传入控制器方法
+		args := resolveParams(ctx, resolvers)
+		if args == nil && len(resolvers) > 0 {
+			return
 		}
+		writeControllerResult(ctx, callable.Call(args)[0])
 	}
 
+	// 判断该函数是否是控制器内部函数
 	methodName, isControllerMethod := controllerMethodName(handler)
 	if !isControllerMethod || newController == nil {
+		// 如果不是控制器内部函数，则直接调用
 		return func(ctx *requestcontext.Context) {
-			writeControllerResult(ctx, handlerValue.Call(nil)[0])
+			// 此时控制器方法降级为普通上下文方法
+			// 使用 call 方法，将 ctx 注入到实际请求体中
+			call(ctx, handlerValue)
 		}
 	}
 
@@ -126,7 +130,7 @@ func anyControllerFuncToHandlerFunc(handler requestcontext.ControllerFunc, newCo
 			panic("yuhuo/mvc: controller method not found: " + methodName)
 		}
 
-		writeControllerResult(ctx, method.Call(nil)[0])
+		call(ctx, method)
 	}
 }
 
