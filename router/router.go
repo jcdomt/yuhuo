@@ -9,21 +9,28 @@ import (
 	"sync"
 )
 
+// nodeKind 表示路由树节点的类型
 type nodeKind uint8
 
 const (
+	// staticNode 静态路径节点
 	staticNode nodeKind = iota
+	// paramNode 参数节点，如 /users/:id
 	paramNode
+	// catchAllNode 通配节点，如 /assets/*path
 	catchAllNode
 )
 
 var (
-	ErrHandlerMustNotBeNil    = errors.New("router: handler must not be nil")
-	ErrMethodMustNotBeEmpty   = errors.New("router: method must not be empty")
+	// ErrHandlerMustNotBeNil 处理器不能为 nil
+	ErrHandlerMustNotBeNil = errors.New("router: handler must not be nil")
+	// ErrMethodMustNotBeEmpty HTTP 方法不能为空
+	ErrMethodMustNotBeEmpty = errors.New("router: method must not be empty")
+	// ErrRouteAlreadyRegistered 路由重复注册
 	ErrRouteAlreadyRegistered = errors.New("router: route already registered")
 )
 
-// 压缩字典树的节点结构体
+// node 是压缩字典树的节点结构体
 type node struct {
 	kind      nodeKind
 	path      string
@@ -33,33 +40,39 @@ type node struct {
 	children  []*node
 }
 
-// Logger 是路由器注册路由时所需的最小日志能力。
-// 接口定义在 router 包内，避免反向依赖根包或 context 包造成循环导入。
+// Logger 是路由器注册路由时所需的最小日志能力
+// 接口定义在 router 包内，避免反向依赖根包或 context 包造成循环导入
 type Logger interface {
 	Debug(args ...interface{})
 	Info(args ...interface{})
 }
 
-// noopLogger 在未注入日志器时静默丢弃所有日志。
+// noopLogger 在未注入日志器时静默丢弃所有日志
 type noopLogger struct{}
 
 func (noopLogger) Debug(args ...interface{}) {}
 func (noopLogger) Info(args ...interface{})  {}
 
-// 使用压缩字典树
+// Router 使用压缩字典树存储路由
 type Router struct {
 	mu     sync.RWMutex
 	trees  map[string]*node
 	logger Logger
 }
 
+// routePart 表示解析后的路由片段
 type routePart struct {
 	kind  nodeKind
 	value string
 }
 
+// paramsKey 是路由参数在请求上下文中的键
 type paramsKey struct{}
 
+// GetDefaultRouter	返回一个默认的路由器实例
+//
+// return:
+//   - 路由器实例
 func GetDefaultRouter() *Router {
 	return &Router{
 		trees:  make(map[string]*node),
@@ -67,7 +80,10 @@ func GetDefaultRouter() *Router {
 	}
 }
 
-// SetLogger 注入路由注册使用的日志器。
+// SetLogger	注入路由注册使用的日志器
+//
+// param:
+//   - logger	日志器，为 nil 时忽略
 func (r *Router) SetLogger(logger Logger) {
 	if logger == nil {
 		return
@@ -77,12 +93,23 @@ func (r *Router) SetLogger(logger Logger) {
 	r.logger = logger
 }
 
-// Param 用于获取路由参数的值。它从请求的上下文中提取参数映射，并返回指定参数名称的值。
+// Param	用于获取路由参数的值，它从请求的上下文中提取参数映射，并返回指定参数名称的值
+//
+// param:
+//   - req	HTTP 请求
+//   - name	路由参数名
+// return:
+//   - 路由参数值
 func Param(req *http.Request, name string) string {
 	params, _ := req.Context().Value(paramsKey{}).(map[string]string)
 	return params[name]
 }
 
+// ServeHTTP	处理一次 HTTP 请求，匹配路由并分发到对应处理器
+//
+// param:
+//   - w	响应写入器
+//   - req	HTTP 请求
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -108,6 +135,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	http.NotFound(w, req)
 }
 
+// logRequest	记录一次匹配到的请求日志
+//
+// param:
+//   - method	HTTP 方法
+//   - path	请求路径
+//   - source	处理器定义位置
 func (r *Router) logRequest(method, path, source string) {
 	if r.logger == nil {
 		return
@@ -119,6 +152,12 @@ func (r *Router) logRequest(method, path, source string) {
 	r.logger.Info("收到请求：", method, " ", path)
 }
 
+// logUnmatched	记录一次未匹配的请求日志
+//
+// param:
+//   - method	HTTP 方法
+//   - path	请求路径
+//   - reason	未匹配原因
 func (r *Router) logUnmatched(method, path, reason string) {
 	if r.logger == nil {
 		return
@@ -126,6 +165,12 @@ func (r *Router) logUnmatched(method, path, reason string) {
 	r.logger.Debug("请求未匹配：", method, " ", path, " (", reason, ")")
 }
 
+// allowedMethods	返回指定路径在其他方法下可用的方法列表
+//
+// param:
+//   - path	请求路径
+// return:
+//   - 允许的方法列表
 func (r *Router) allowedMethods(path string) []string {
 	methods := make([]string, 0)
 	for method, root := range r.trees {
@@ -137,6 +182,12 @@ func (r *Router) allowedMethods(path string) []string {
 	return methods
 }
 
+// parsePattern	将路由模式解析为路由片段列表
+//
+// param:
+//   - pattern	路由模式
+// return:
+//   - 路由片段列表
 func parsePattern(pattern string) []routePart {
 	if pattern == "/" {
 		return []routePart{{kind: staticNode, value: "/"}}
@@ -172,7 +223,7 @@ func parsePattern(pattern string) []routePart {
 				panic("router: catch-all parameter must be the last path segment: " + pattern)
 			}
 
-			// 动态部分前的斜杠属于前面的静态片段，因此参数匹配仅接收该部分的值。
+			// 动态部分前的斜杠属于前面的静态片段，因此参数匹配仅接收该部分的值
 			staticPath += "/"
 			flushStatic()
 			kind := paramNode
@@ -189,6 +240,13 @@ func parsePattern(pattern string) []routePart {
 	return parts
 }
 
+// insertStatic	将静态路径插入父节点的子树中，必要时进行节点分裂
+//
+// param:
+//   - parent	父节点
+//   - path	静态路径
+// return:
+//   - 插入后的目标节点
 func insertStatic(parent *node, path string) *node {
 	for path != "" {
 		child := findStaticChild(parent, path[0])
@@ -225,6 +283,14 @@ func insertStatic(parent *node, path string) *node {
 	return parent
 }
 
+// insertWildcard	将参数或通配节点插入父节点的子树中
+//
+// param:
+//   - parent	父节点
+//   - kind	节点类型（paramNode 或 catchAllNode）
+//   - name	参数名
+// return:
+//   - 插入后的目标节点
 func insertWildcard(parent *node, kind nodeKind, name string) *node {
 	for _, child := range parent.children {
 		if child.kind != kind {
@@ -241,6 +307,13 @@ func insertWildcard(parent *node, kind nodeKind, name string) *node {
 	return child
 }
 
+// findStaticChild	在父节点中查找以指定首字节开头的静态子节点
+//
+// param:
+//   - parent	父节点
+//   - firstByte	首字节
+// return:
+//   - 匹配的子节点，不存在时返回 nil
 func findStaticChild(parent *node, firstByte byte) *node {
 	for _, child := range parent.children {
 		if child.kind == staticNode && child.path[0] == firstByte {
@@ -250,6 +323,12 @@ func findStaticChild(parent *node, firstByte byte) *node {
 	return nil
 }
 
+// replaceChild	用新节点替换父节点下的指定子节点
+//
+// param:
+//   - parent	父节点
+//   - oldChild	旧子节点
+//   - newChild	新子节点
 func replaceChild(parent, oldChild, newChild *node) {
 	for index, child := range parent.children {
 		if child == oldChild {
@@ -259,6 +338,13 @@ func replaceChild(parent, oldChild, newChild *node) {
 	}
 }
 
+// commonPrefixLength	返回两个字符串的公共前缀长度
+//
+// param:
+//   - left	左侧字符串
+//   - right	右侧字符串
+// return:
+//   - 公共前缀长度
 func commonPrefixLength(left, right string) int {
 	limit := len(left)
 	if len(right) < limit {
@@ -272,12 +358,21 @@ func commonPrefixLength(left, right string) int {
 	return index
 }
 
+// matchResult 是一次路由匹配的结果
 type matchResult struct {
 	handler http.Handler
 	params  map[string]string
 	source  string
 }
 
+// matchRoute	从树的根节点开始匹配路径
+//
+// param:
+//   - root	根节点
+//   - path	请求路径
+//   - params	已累积的路由参数
+// return:
+//   - 匹配结果及是否匹配成功
 func matchRoute(root *node, path string, params map[string]string) (matchResult, bool) {
 	if root == nil {
 		return matchResult{}, false
@@ -286,6 +381,14 @@ func matchRoute(root *node, path string, params map[string]string) (matchResult,
 	return matchNode(root, path, params)
 }
 
+// matchNode	递归匹配当前节点及其子节点
+//
+// param:
+//   - current	当前节点
+//   - path	剩余路径
+//   - params	已累积的路由参数
+// return:
+//   - 匹配结果及是否匹配成功
 func matchNode(current *node, path string, params map[string]string) (matchResult, bool) {
 	if path == "" && current.handler != nil {
 		return matchResult{handler: current.handler, params: params, source: current.source}, true
@@ -329,6 +432,12 @@ func matchNode(current *node, path string, params map[string]string) (matchResul
 	return matchResult{}, false
 }
 
+// nextSegment	从路径中提取下一个路径段
+//
+// param:
+//   - path	请求路径
+// return:
+//   - 路径段值、剩余路径及是否成功提取
 func nextSegment(path string) (value, rest string, ok bool) {
 	if path == "" {
 		return "", "", false
@@ -342,6 +451,14 @@ func nextSegment(path string) (value, rest string, ok bool) {
 	return path, "", true
 }
 
+// withParam	在参数映射中追加一个路由参数，返回新的映射
+//
+// param:
+//   - params	原参数映射
+//   - name	参数名
+//   - value	参数值
+// return:
+//   - 追加后的参数映射
 func withParam(params map[string]string, name, value string) map[string]string {
 	result := make(map[string]string, len(params)+1)
 	for key, existingValue := range params {
